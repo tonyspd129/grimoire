@@ -1,0 +1,122 @@
+name: PR Summary
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  summarize:
+    name: Summarize changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get diff
+        id: diff
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD --stat --no-color)
+          PATCH=$(git diff origin/${{ github.base_ref }}...HEAD --no-color | head -c 12000)
+          echo "stat<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIFF" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "patch<<EOF" >> $GITHUB_OUTPUT
+          echo "$PATCH" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Summarize with Claude via OpenRouter
+        id: summary
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BODY="${{ github.event.pull_request.body }}"
+          STAT="${{ steps.diff.outputs.stat }}"
+          PATCH="${{ steps.diff.outputs.patch }}"
+
+          PROMPT="You are reviewing a pull request for Grimoire, a Tauri desktop AI agent app (Rust + React/TypeScript).
+
+          PR title: ${PR_TITLE}
+          PR description: ${PR_BODY}
+
+          File changes:
+          ${STAT}
+
+          Diff (first 12KB):
+          \`\`\`diff
+          ${PATCH}
+          \`\`\`
+
+          Write a concise PR summary in this exact format:
+
+          ## Summary
+          [1-3 sentences: what this PR does and why]
+
+          ## What changed
+          | Area | Change |
+          |------|--------|
+          [one row per affected component: providers / agent / learning / skills / Rust / UI / CI / docs]
+
+          ## Risk
+          **Level**: Low / Medium / High
+          **Reason**: [one sentence]
+
+          ## Review focus
+          - [1-3 specific things reviewers should look at closely]
+
+          Be direct. No filler. If the diff is truncated, note it."
+
+          RESPONSE=$(curl -s https://openrouter.ai/api/v1/chat/completions \
+            -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "X-Title: Grimoire PR Summary" \
+            -d "{
+              \"model\": \"anthropic/claude-haiku-4-5\",
+              \"max_tokens\": 1024,
+              \"messages\": [{
+                \"role\": \"user\",
+                \"content\": $(echo "$PROMPT" | jq -Rs .)
+              }]
+            }")
+
+          SUMMARY=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // "Summary generation failed."')
+          echo "text<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post or update comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- grimoire-pr-summary -->';
+            const summary = `${marker}\n${{ steps.summary.outputs.text }}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c => c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: summary,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: summary,
+              });
+            }
