@@ -35,6 +35,11 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
+          if [ -z "${OPENROUTER_API_KEY}" ]; then
+            echo "text=_OPENROUTER_API_KEY secret not configured — skipping AI summary._" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           PR_TITLE="${{ github.event.pull_request.title }}"
           PR_BODY="${{ github.event.pull_request.body }}"
           STAT="${{ steps.diff.outputs.stat }}"
