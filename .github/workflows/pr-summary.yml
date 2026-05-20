@@ -44,16 +44,16 @@ jobs:
           PR_BODY="${{ github.event.pull_request.body }}"
           STAT="${{ steps.diff.outputs.stat }}"
           PATCH="${{ steps.diff.outputs.patch }}"
+          ROADMAP=$(cat ROADMAP.md 2>/dev/null | head -c 6000 || echo "ROADMAP.md not found")
 
           PROMPT="You are the automated reviewer for Grimoire — a local-first Tauri desktop AI agent (Rust + React/TypeScript).
 
-          ## Grimoire's core principles (use these to evaluate alignment)
-          1. LOCAL-FIRST: zero servers, zero telemetry, zero accounts. Only network traffic allowed is machine → LLM provider APIs.
-          2. SKILLS ARE NEVER DELETED: only superseded or archived. Lifecycle: draft → active → validated → expert.
-          3. CLEAN EXTENSION CONTRACTS: providers in src/lib/providers/, skills in resources/skills/, tools in src/lib/agent/tools.ts.
-          4. types.ts IS FROZEN: src/lib/providers/types.ts is the public OSS contract. It must never be modified by contributors.
-          5. RUST FOR SYSTEM OPS, TYPESCRIPT FOR LLM CALLS: no LLM calls in Rust, no shell exec in TypeScript renderer.
-          6. OUT OF SCOPE: web apps, SaaS features, vector DBs, RAG pipelines, code editors, multi-agent orchestration.
+          The project roadmap and goals are below. Use it as the authoritative source to evaluate whether this PR fits the project.
+
+          ## Project Roadmap
+          ${ROADMAP}
+
+          ---
 
           ## PR to review
           Title: ${PR_TITLE}
@@ -79,7 +79,7 @@ jobs:
 
           ## Goal alignment
           **Verdict**: ✅ Aligned / ⚠️ Partially aligned / ❌ Out of scope
-          [1-2 sentences: does this PR serve Grimoire's mission — a local-first agent that learns from sessions? Call out any principle violations clearly: server calls, types.ts edits, LLM calls in Rust, scope creep, skill deletion logic, etc. If aligned, say so briefly.]
+          [1-2 sentences referencing the roadmap: does this PR serve Grimoire's mission? Flag any principle violations — server calls, types.ts edits, LLM in Rust, scope creep, skill deletion. If aligned, say so briefly.]
 
           ## Risk
           **Level**: Low / Medium / High
@@ -88,7 +88,7 @@ jobs:
           ## Review focus
           - [1-3 specific things reviewers should look at closely]
 
-          Be direct. No filler. If the diff is truncated, note it. For the Goal alignment section, be strict — Grimoire's principles exist to keep it local-first and contributor-friendly."
+          Be direct. No filler. If the diff is truncated, note it."
 
           RESPONSE=$(curl -s https://openrouter.ai/api/v1/chat/completions \
             -H "Authorization: Bearer ${OPENROUTER_API_KEY}" \
