@@ -1,5 +1,8 @@
 # Contributing to Grimoire
 
+**Questions? Join the [Discord community](https://discord.gg/MmXZVqMbU)** — `#contributors` for PR discussion, `#skills-library` to share or request built-in skills.
+
+
 ## What Grimoire is
 
 Grimoire is a local-first desktop AI agent built on Tauri (Rust + React). It has two memory systems:

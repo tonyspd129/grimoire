@@ -2,6 +2,9 @@
 
 > Status: ✅ Done · 🚧 Built but not wired · 🔲 Not started
 
+**Community: [Discord](https://discord.gg/MmXZVqMbU)** — discuss features, share skills, get help contributing.
+
+
 ---
 
 ## What Grimoire Is

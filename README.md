@@ -2,6 +2,9 @@
 
 > The spellbook that learns. Skills are spells. The agent casts them. You build the book.
 
+[![Discord](https://img.shields.io/discord/MmXZVqMbU?label=Discord&logo=discord&logoColor=white&color=5865F2)](https://discord.gg/MmXZVqMbU)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Grimoire is a local-first desktop AI agent that grows smarter with every session. It learns **what you know how to do** (Skill Memory) and **who you are** (User Memory) — and gets better at both without a server, without a subscription, without your data leaving your machine.
 
 ---
@@ -78,6 +81,12 @@ Skills are **never deleted** unless you archive them or a better skill replaces 
 **Manual**: Check skills in the sidebar. They are injected in full before the LLM sees your message.
 
 **Automatic (default)**: The skill catalog (name + description only, ~5 tokens/skill) is in the system prompt. The LLM calls `read_skill(name)` when a skill is relevant. You see which skills were loaded in the sidebar after each session.
+
+---
+
+## Community
+
+**[Join the Discord](https://discord.gg/MmXZVqMbU)** — share your skills library, get help with setup, discuss features, or just hang out.
 
 ---
 
