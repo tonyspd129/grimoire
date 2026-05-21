@@ -77,7 +77,7 @@ Run these locally before pushing. Do not open a PR with red CI and ask the maint
 
 ---
 
-## The Three Ways to Contribute
+## Ways to Contribute
 
 ### 1. Add a new LLM provider
 
@@ -114,7 +114,7 @@ import { MistralProvider } from "./mistral";
 export const PROVIDERS = [AnthropicProvider, OpenAIProvider, GoogleProvider, MistralProvider];
 ```
 
-See [docs/adding-a-provider.md](docs/adding-a-provider.md) for the full walkthrough.
+Open providers: Ollama, Groq, Mistral, OpenRouter, Cohere. See [docs/adding-a-provider.md](docs/adding-a-provider.md).
 
 ---
 
@@ -140,13 +140,13 @@ Rules:
 - Content must be original and procedural — not copied from official documentation
 - Test your skill against a real task in the app before submitting
 
-See [docs/adding-a-skill.md](docs/adding-a-skill.md) for examples.
+Open skills: `kubernetes-ops`, `rust-debugging`, `python-async`, `terraform-ops`, `typescript-patterns`. See [docs/adding-a-skill.md](docs/adding-a-skill.md).
 
 ---
 
 ### 3. Add a new agent tool
 
-Implement `AgentTool` in `src/lib/agent/tools.ts` and register it.
+Implement `AgentTool` in `src/lib/agent/tools.ts` and register it. If the tool needs system access, add a `#[tauri::command]` in `src-tauri/src/commands/tools.rs` and register in `lib.rs`.
 
 ```typescript
 const myTool: AgentTool = {
@@ -166,9 +166,121 @@ const myTool: AgentTool = {
 };
 ```
 
-If the tool needs a Rust backend, add `#[tauri::command]` in `src-tauri/src/commands/tools.rs` and register in `lib.rs`.
-
 See [docs/adding-a-tool.md](docs/adding-a-tool.md).
+
+---
+
+### 4. Fix a bug
+
+Check the [issue tracker](https://github.com/tonyspd129/grimoire/issues) for bugs tagged `confirmed`. Known open bugs from the codebase:
+
+- **Model selection ignored** — `anthropic.ts`, `openai.ts`, `google.ts` hardcode model names instead of reading from config
+- **`search_files` grep pattern malformed** — argument order wrong in `src-tauri/src/commands/tools.rs`
+- **`execute_bash` timeout not applied** — `timeout_secs` parameter accepted but never used
+- **Google provider ignores tools** — `tools` array passed to `GoogleProvider.stream()` but never used; agent cannot call tools when Google is selected
+- **Memory token budget not enforced** — `memory_token_budget` config is saved but `buildSystemPrompt()` never reads it
+
+Every bug fix must link to a confirmed issue and include a test if the bug is reproducible in a unit test.
+
+---
+
+### 5. Build a UI page
+
+Two pages are incomplete. Both have data fully available from Rust via `invoke()` — this is a pure React/TypeScript task.
+
+**Skills page** (`src/pages/Skills.tsx`):
+- Browse all skills (built-in + user-created) with filter by category and status
+- Confidence bars and usage count display
+- Pending Review tab: accept → sets status to `active`, reject → sets status to `archived`
+- Upload skill button: parse a user-provided `.md` file and call `invoke("save_skill")`
+- Skill detail view with full content
+
+**Memory page** (`src/pages/Memory.tsx`):
+- Display all memories grouped by type: Preferences, Expertise, Projects, Corrections, Patterns
+- Confidence bars per entry
+- Delete individual entries via `invoke("delete_memory")`
+- Export all as JSON
+- Clear all with confirmation dialog
+
+Data commands already available: `get_skills`, `save_skill`, `update_skill`, `delete_skill`, `get_memories`, `save_memory`, `update_memory`, `delete_memory`.
+
+---
+
+### 6. Wire the learning loop
+
+The micro-learning system is fully written but never called. This is the most impactful open task.
+
+**What exists:**
+- `src/lib/learning/extractor.ts` — `runMicroLearning(messages, provider, apiKey)` runs two parallel LLM calls and returns `{ skill, memoryOps }`
+- All Rust DB commands: `save_skill`, `save_memory`, `save_extraction`, `update_skill`
+
+**What needs building:**
+- In `src/pages/Chat.tsx`: after a conversation ends with ≥5 messages, call `runMicroLearning()` asynchronously
+- Check `learning_enabled` config before running
+- If `skill.confidence >= auto_save_threshold` → `invoke("save_skill")` + show toast notification
+- If `skill.confidence < auto_save_threshold` → `invoke("save_skill", { status: "draft" })` + show review modal
+- Apply each `MemoryOperation` → `invoke("save_memory")` / `invoke("update_memory")`
+- Log the extraction attempt via `invoke("save_extraction")`
+
+**UI components needed:**
+- Learning toast (bottom-right, shows skill name + confidence + Preview/Dismiss)
+- Skill review modal (shows draft skill content, Accept / Reject actions)
+
+---
+
+### 7. Implement meso-learning (weekly)
+
+Background job that runs every 7 sessions. Does not require user interaction.
+
+File to create: `src/lib/learning/meso.ts`
+
+Tasks:
+- Fetch all skills from DB and detect overlapping/duplicate skills (same triggers, similar descriptions) — propose merge or supersede
+- Flag skills with `fail_count >= 3` for user review
+- Consolidate related memory entries (e.g. multiple corrections about the same tool)
+- Generate a weekly insight record via `invoke("save_insight")` with: skills learned, memory updates, top skills by usage, skills needing review
+
+Trigger: check `session_count % 7 === 0` on app open. Display the insight card if `invoke("get_latest_insight")` returns an unseen record.
+
+---
+
+### 8. Write tests
+
+Current test coverage only covers provider registry, prompt building, and skill catalog. Open testing tasks:
+
+- **`extractor.ts`** — test skill extraction JSON parsing, invalid JSON handling, empty conversation, null result path
+- **`runner.ts`** — test max iterations limit, abort signal, tool execution path, error event
+- **`tools.ts`** — test each tool's output formatting, error cases
+- **`prompt.ts`** — test token budget enforcement once implemented, corrections ordering
+- **Integration** — test full Chat → runAgent → tool → DB round-trip with a mocked provider
+
+Tests live in `src/__tests__/`. Use Vitest. Tauri `invoke()` is mocked in `src/__mocks__/tauri.ts` — extend the mock for new commands.
+
+---
+
+### 9. Improve Rust backend
+
+Rust tasks that don't require TypeScript changes:
+
+- **`execute_bash` timeout** — wrap the `std::process::Command` call with `tokio::time::timeout(Duration::from_secs(timeout_secs))` in `src-tauri/src/commands/tools.rs`
+- **`list_dir` size limit** — add a cap (e.g. 500 entries) to prevent listing huge directories from hanging the UI
+- **DB migrations** — add a schema version table and migration runner so existing user databases can be upgraded when the schema changes
+- **`search_files` pattern fix** — fix the grep argument order so pattern matching works correctly
+
+All Rust changes: run `cargo clippy -- -D warnings` and `cargo test` before submitting.
+
+---
+
+### 10. Documentation
+
+Docs that are missing or incomplete:
+
+- `docs/adding-a-tool.md` — does not exist yet; should mirror `adding-a-provider.md` in depth
+- `docs/adding-a-skill.md` — exists but needs more examples across different categories
+- Architecture deep-dive — how the ReAct loop, skill catalog, and memory injection interact end-to-end
+- Troubleshooting guide — common setup issues (Tauri system deps, snap/glibc conflicts on Ubuntu, API key test failures)
+
+Documentation PRs do not need a prior issue. They must correct or add real information — not reword existing content.
 
 ---
 
