@@ -6,60 +6,74 @@
 
 ## Before You Open a PR
 
-**Open a GitHub Issue first.** Describe what you want to fix or build and wait for acknowledgement before writing code. This prevents duplicate work and ensures your contribution is in scope.
-
-Exception: built-in skill `.md` files do not need a prior issue.
+- **Search open issues and PRs first.** If someone is already working on the same thing, coordinate rather than duplicate.
+- **Wait for issue acknowledgement.** A maintainer will confirm the change is in scope and not already being worked on. PRs opened without a confirmed issue are likely to be closed.
+- **Keep scope small.** One bug fix or one feature per PR. Mixed-purpose PRs are hard to review and will be asked to split.
 
 ---
 
 ## What We Will Merge
 
-| Contribution | Bar |
+| Contribution | Standard |
 |---|---|
 | New LLM provider | Full `LLMProvider` implementation — `stream()`, `complete()`, `testConnection()` all working with a real API key |
 | Built-in skill | Genuinely useful, procedural, ≤100 char description, tested against real agent tasks |
-| Bug fix | Fixes a real, reproducible bug. Links to the issue. Includes a test if the bug was testable. |
-| New agent tool | Implements `AgentTool`, has a Rust command if needed, tool definition is accurate for the LLM |
-| UI page | Substantially complete, wired to real data, not a visual stub |
+| Bug fix | Fixes a real reproducible bug. Links to the issue. Includes a test if the bug is testable. |
+| New agent tool | Implements `AgentTool`, Rust command if needed, tool definition accurate for the LLM |
+| UI page | Substantially complete, wired to real data — not a visual stub |
 | Learning wiring | Connects an existing module to the agent loop — must be end-to-end, not partial |
-| Performance improvement | Measurable, not speculative |
-| Documentation | Corrects something wrong or missing. Not padding. |
+| Performance fix | Measurable improvement, not speculative |
+| Documentation | Corrects something wrong or missing — not padding |
 
 ---
 
 ## What We Will NOT Merge
 
-These PRs will be closed immediately without review:
+These PRs are closed immediately without review:
 
 - **Whitespace, formatting, or punctuation changes** with no functional effect
-- **Typo fixes** in comments, variable names, or strings that don't affect behavior (exception: docs with factual errors)
-- **Renaming things** without a clear reason stated in the PR
+- **Typo fixes** in code comments or variable names that don't affect behavior
+- **Renaming things** for personal style preference
 - **Adding comments** that describe what the code already clearly does
 - **Partial implementations** — stubs, TODOs, or "foundation for future work"
-- **Duplicate PRs** — same change opened multiple times
-- **PRs without a linked issue** (except skills) — if no issue exists, open one first
-- **Out-of-scope features** — servers, SaaS, RAG/vector DBs, code editors, multi-agent orchestration
-- **Dependency bumps** — handled by Dependabot automatically
-- **AI-generated code without review** — generated code must be read, tested, and understood by the author before submitting. Submitting generated code you cannot explain will result in the PR being closed.
-- **`src/lib/providers/types.ts` modifications** — this file is frozen. Any PR touching it is closed.
-- **Direct pushes to `main`** — all changes go through PRs and review
+- **Duplicate PRs** — same change opened more than once
+- **PRs without a linked issue** — open an issue and wait for acknowledgement first (skills exempt)
+- **Out-of-scope features** — servers, SaaS, RAG/vector DBs, code editors, multi-agent orchestration (see [ROADMAP.md](ROADMAP.md))
+- **Dependency bumps** — handled automatically by Dependabot, not accepted manually
+- **AI-generated code the author cannot explain** — generated code must be read, understood, and tested by the author. If asked to explain a section during review and you cannot, the PR is closed.
+- **`src/lib/providers/types.ts` modifications** — this file is the frozen public contract. Any PR touching it is closed regardless of content.
+- **PRs with failing CI** — fix CI before requesting review, not after
+
+---
+
+## CI Requirements (all must pass before review)
+
+| Check | Command |
+|---|---|
+| TypeScript type check | `npx tsc --noEmit` |
+| Unit tests | `npm test -- --run` |
+| Rust check + clippy + tests | `cargo check && cargo clippy -- -D warnings && cargo test` |
+| Commit message lint | conventional commits format enforced |
+
+Run these locally before pushing. Do not open a PR with red CI and ask the maintainer to debug it.
 
 ---
 
 ## What Good Looks Like
 
-A good PR:
-- Fixes one specific thing or adds one complete feature
-- Has a description that explains WHY, not just WHAT
-- Shows evidence it was tested (screenshot, test output, or explicit test steps)
-- Passes all CI checks before asking for review
-- Has conventional commit messages (`feat(providers): add Mistral provider`)
+**Good PR:**
+- Solves one specific problem from a confirmed issue
+- Description explains WHY the change is needed
+- Includes evidence of testing (screenshot, test output, or explicit steps)
+- CI is green when review is requested
+- Commits are clean and conventional
 
-A bad PR:
-- Changes 3 unrelated things
-- Has a description like "fix stuff" or "improve code"
-- Has no tests and no evidence of local testing
-- Fails CI and asks the maintainer to figure out why
+**Bad PR:**
+- Changes multiple unrelated things
+- Description says "fix stuff" or "improve code quality"
+- No evidence of local testing
+- CI is red
+- Author asks maintainer to figure out what's wrong
 
 ---
 
@@ -67,7 +81,7 @@ A bad PR:
 
 ### 1. Add a new LLM provider
 
-Implement the `LLMProvider` interface in `src/lib/providers/types.ts`. **Never modify `types.ts`** — only implement it.
+Implement the `LLMProvider` interface from `src/lib/providers/types.ts`. **Never modify `types.ts`** — only implement it.
 
 ```typescript
 // src/lib/providers/mistral.ts
@@ -94,7 +108,7 @@ export const MistralProvider: LLMProvider = {
 };
 ```
 
-Then register in `src/lib/providers/index.ts`:
+Register in `src/lib/providers/index.ts`:
 ```typescript
 import { MistralProvider } from "./mistral";
 export const PROVIDERS = [AnthropicProvider, OpenAIProvider, GoogleProvider, MistralProvider];
@@ -106,7 +120,7 @@ See [docs/adding-a-provider.md](docs/adding-a-provider.md) for the full walkthro
 
 ### 2. Contribute a built-in skill
 
-Drop a `.md` file in `src-tauri/resources/skills/`. No code changes needed.
+Drop a `.md` file in `src-tauri/resources/skills/`. No code changes needed. No prior issue required.
 
 ```markdown
 ---
@@ -120,10 +134,11 @@ Full skill content here. Write it as a guide for the agent.
 Be specific, procedural, and focused on what actually works.
 ```
 
-**Rules:**
+Rules:
 - `description` must be ≤100 characters
 - `name` must be kebab-case and unique across all built-in skills
-- Content must be procedural and tested — not copied from documentation
+- Content must be original and procedural — not copied from official documentation
+- Test your skill against a real task in the app before submitting
 
 See [docs/adding-a-skill.md](docs/adding-a-skill.md) for examples.
 
@@ -151,7 +166,7 @@ const myTool: AgentTool = {
 };
 ```
 
-If the tool needs a Rust backend, add a `#[tauri::command]` in `src-tauri/src/commands/tools.rs` and register in `lib.rs`.
+If the tool needs a Rust backend, add `#[tauri::command]` in `src-tauri/src/commands/tools.rs` and register in `lib.rs`.
 
 See [docs/adding-a-tool.md](docs/adding-a-tool.md).
 
@@ -160,12 +175,14 @@ See [docs/adding-a-tool.md](docs/adding-a-tool.md).
 ## Code Conventions
 
 - **TypeScript strict mode** — no `any` except in legacy spots, no `// @ts-ignore`
-- **No inline imports** — top-level only, no dynamic `import()` inside functions
-- **Rust** — run `cargo clippy` before pushing; fix all warnings
-- **No new npm dependencies** without prior discussion in an issue
-- **No comments** unless the WHY is non-obvious
+- **Top-level imports only** — no dynamic `import()` inside functions
+- **Rust** — run `cargo clippy -- -D warnings` before pushing; fix all warnings, not just errors
+- **No new npm dependencies** without prior discussion in an issue (bundle size matters)
+- **No code comments** unless the WHY is non-obvious — the what is in the code
 
 ## Commit Style
+
+Commits are linted by CI. Non-conventional commits will fail the check.
 
 ```
 feat(providers): add Mistral provider
@@ -173,4 +190,7 @@ feat(skills): add rust-error-handling skill
 fix(agent): handle stream abort correctly
 fix(db): prevent stmt lifetime issue in get_memories
 refactor(chat): extract ToolBlock into its own component
+docs(contributing): clarify PR workflow
 ```
+
+Valid scopes: `providers`, `agent`, `learning`, `skills`, `chat`, `memory`, `ui`, `settings`, `db`, `config`, `tools`, `ci`, `docs`, `deps`
