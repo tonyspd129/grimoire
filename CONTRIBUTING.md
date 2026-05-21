@@ -2,47 +2,72 @@
 
 **Questions? Join the [Discord community](https://discord.gg/MmXZVqMbU)** — `#contributors` for PR discussion, `#skills-library` to share or request built-in skills.
 
+---
 
-## What Grimoire is
+## Before You Open a PR
 
-Grimoire is a local-first desktop AI agent built on Tauri (Rust + React). It has two memory systems:
-- **Skill Memory** — procedural knowledge the agent uses to accomplish tasks (stored as `.md` files)
-- **User Memory** — behavioral memory about the user's preferences, expertise, and corrections (stored in SQLite)
+**Open a GitHub Issue first.** Describe what you want to fix or build and wait for acknowledgement before writing code. This prevents duplicate work and ensures your contribution is in scope.
 
-Both grow automatically from sessions. Skills are never deleted — only superseded by better ones or explicitly archived.
-
-The agent uses a ReAct loop with 5 tools: bash, read_file, write_file, search_files, list_dir. Plus `read_skill` — the key to lazy skill loading: the LLM reads the skill catalog and fetches full content on demand.
-
-## Architecture
-
-```
-src/lib/providers/     ← LLM provider implementations (THE extension point)
-src/lib/agent/         ← ReAct runner, tool dispatch, system prompt builder
-src/lib/learning/      ← Micro-learning: skill extractor + behavior analyzer
-src/pages/             ← React pages: Chat, Skills, Memory, Settings
-src-tauri/src/         ← Rust: SQLite, encrypted config, bash/file tools
-src-tauri/resources/skills/  ← Built-in skill .md files
-```
-
-## Running locally
-
-```bash
-# Prerequisites: Rust, Node 18+, Tauri system deps
-# https://tauri.app/guides/prerequisites
-
-git clone https://github.com/YOUR_ORG/grimoire
-cd grimoire
-npm install
-npm run tauri dev
-```
-
-## The Three Ways to Contribute
+Exception: built-in skill `.md` files do not need a prior issue.
 
 ---
 
+## What We Will Merge
+
+| Contribution | Bar |
+|---|---|
+| New LLM provider | Full `LLMProvider` implementation — `stream()`, `complete()`, `testConnection()` all working with a real API key |
+| Built-in skill | Genuinely useful, procedural, ≤100 char description, tested against real agent tasks |
+| Bug fix | Fixes a real, reproducible bug. Links to the issue. Includes a test if the bug was testable. |
+| New agent tool | Implements `AgentTool`, has a Rust command if needed, tool definition is accurate for the LLM |
+| UI page | Substantially complete, wired to real data, not a visual stub |
+| Learning wiring | Connects an existing module to the agent loop — must be end-to-end, not partial |
+| Performance improvement | Measurable, not speculative |
+| Documentation | Corrects something wrong or missing. Not padding. |
+
+---
+
+## What We Will NOT Merge
+
+These PRs will be closed immediately without review:
+
+- **Whitespace, formatting, or punctuation changes** with no functional effect
+- **Typo fixes** in comments, variable names, or strings that don't affect behavior (exception: docs with factual errors)
+- **Renaming things** without a clear reason stated in the PR
+- **Adding comments** that describe what the code already clearly does
+- **Partial implementations** — stubs, TODOs, or "foundation for future work"
+- **Duplicate PRs** — same change opened multiple times
+- **PRs without a linked issue** (except skills) — if no issue exists, open one first
+- **Out-of-scope features** — servers, SaaS, RAG/vector DBs, code editors, multi-agent orchestration
+- **Dependency bumps** — handled by Dependabot automatically
+- **AI-generated code without review** — generated code must be read, tested, and understood by the author before submitting. Submitting generated code you cannot explain will result in the PR being closed.
+- **`src/lib/providers/types.ts` modifications** — this file is frozen. Any PR touching it is closed.
+- **Direct pushes to `main`** — all changes go through PRs and review
+
+---
+
+## What Good Looks Like
+
+A good PR:
+- Fixes one specific thing or adds one complete feature
+- Has a description that explains WHY, not just WHAT
+- Shows evidence it was tested (screenshot, test output, or explicit test steps)
+- Passes all CI checks before asking for review
+- Has conventional commit messages (`feat(providers): add Mistral provider`)
+
+A bad PR:
+- Changes 3 unrelated things
+- Has a description like "fix stuff" or "improve code"
+- Has no tests and no evidence of local testing
+- Fails CI and asks the maintainer to figure out why
+
+---
+
+## The Three Ways to Contribute
+
 ### 1. Add a new LLM provider
 
-Implement the `LLMProvider` interface in `src/lib/providers/types.ts`. This is the main OSS extension point — **never modify `types.ts` itself**, only implement it.
+Implement the `LLMProvider` interface in `src/lib/providers/types.ts`. **Never modify `types.ts`** — only implement it.
 
 ```typescript
 // src/lib/providers/mistral.ts
@@ -75,7 +100,7 @@ import { MistralProvider } from "./mistral";
 export const PROVIDERS = [AnthropicProvider, OpenAIProvider, GoogleProvider, MistralProvider];
 ```
 
-See [docs/adding-a-provider.md](docs/adding-a-provider.md) for a full walkthrough.
+See [docs/adding-a-provider.md](docs/adding-a-provider.md) for the full walkthrough.
 
 ---
 
@@ -96,9 +121,9 @@ Be specific, procedural, and focused on what actually works.
 ```
 
 **Rules:**
-- `description` must be ≤100 characters (shown in the skill catalog to the LLM)
+- `description` must be ≤100 characters
 - `name` must be kebab-case and unique across all built-in skills
-- Content should be technique-focused, not tool documentation
+- Content must be procedural and tested — not copied from documentation
 
 See [docs/adding-a-skill.md](docs/adding-a-skill.md) for examples.
 
@@ -106,7 +131,7 @@ See [docs/adding-a-skill.md](docs/adding-a-skill.md) for examples.
 
 ### 3. Add a new agent tool
 
-Implement `AgentTool` in `src/lib/agent/tools.ts` and register it in `BASE_TOOLS` or as a special tool.
+Implement `AgentTool` in `src/lib/agent/tools.ts` and register it.
 
 ```typescript
 const myTool: AgentTool = {
@@ -120,41 +145,27 @@ const myTool: AgentTool = {
     required: ["arg1"],
   },
   async execute(args: any) {
-    // Use invoke() for Tauri commands, or make direct web calls
     const result = await invoke<string>("my_rust_command", { arg: args.arg1 });
     return result;
   },
 };
 ```
 
-If the tool needs a Rust backend, add a `#[tauri::command]` in `src-tauri/src/commands/tools.rs` and register it in `lib.rs`.
+If the tool needs a Rust backend, add a `#[tauri::command]` in `src-tauri/src/commands/tools.rs` and register in `lib.rs`.
 
-See [docs/adding-a-tool.md](docs/adding-a-tool.md) for the full guide.
+See [docs/adding-a-tool.md](docs/adding-a-tool.md).
 
 ---
 
-## Code conventions
+## Code Conventions
 
 - **TypeScript strict mode** — no `any` except in legacy spots, no `// @ts-ignore`
-- **No inline imports** — top-level imports only, no dynamic `import()` inside functions
+- **No inline imports** — top-level only, no dynamic `import()` inside functions
 - **Rust** — run `cargo clippy` before pushing; fix all warnings
-- **No new npm dependencies** without discussion in an issue first (bundle size matters)
-- **No comments** unless the WHY is non-obvious (the what is in the code)
+- **No new npm dependencies** without prior discussion in an issue
+- **No comments** unless the WHY is non-obvious
 
-## PR checklist
-
-```
-[ ] npm run build passes (TypeScript)
-[ ] cargo check passes (Rust)
-[ ] Tested locally with npm run tauri dev
-[ ] For new providers: testConnection() works with a real key
-[ ] For new skills: description ≤ 100 chars, content is procedural
-[ ] For new tools: tool definition shown to LLM is accurate
-[ ] No API keys or secrets committed
-[ ] CONTRIBUTING.md or docs/ updated if adding a provider/tool
-```
-
-## Commit style
+## Commit Style
 
 ```
 feat(providers): add Mistral provider
